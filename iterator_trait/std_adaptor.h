@@ -51,12 +51,55 @@ struct InputIteratorAdaptor : Iterator<
 	bool m_valid;
 };
 
+
+template<class StdBeginIt, class StdEndIt>
+struct InputIteratorAdaptor<StdBeginIt*, StdEndIt*> : Iterator<
+	std::remove_reference_t<StdBeginIt>, InputIteratorAdaptor<StdBeginIt*, StdEndIt*>> {
+
+	using Item = std::remove_reference_t<StdBeginIt>;
+
+	InputIteratorAdaptor(StdBeginIt* b, StdEndIt* e)
+		: m_begin{ b }
+		, m_end{ e } {}
+
+	InputIteratorAdaptor(InputIteratorAdaptor&& o)
+		: m_begin{ o.m_begin }
+		, m_end{ o.m_end } {
+
+		o.m_begin = nullptr;
+		o.m_end = nullptr;
+	}
+
+	Option<Item> next() {
+		if (!m_begin || !m_end) return None;
+
+		if (m_begin != m_end) {
+			Option<Item> r(std::move(*m_begin));
+			++m_begin;
+			return r;
+		}
+
+		return None;
+	}
+
+	StdBeginIt* m_begin;
+	StdEndIt* m_end;
+};
+
+
 template<class StdBeginIt, class StdEndIt>
 auto iter(StdBeginIt&& b, StdEndIt&& e) -> InputIteratorAdaptor<StdBeginIt, StdEndIt> {
-	return{ std::forward<StdBeginIt>(b), std::forward<StdEndIt>(e) };
+	return { std::forward<StdBeginIt>(b), std::forward<StdEndIt>(e) };
 }
+
+
+template<class StdBeginIt, class StdEndIt>
+auto iter(StdBeginIt* b, StdEndIt* e) -> InputIteratorAdaptor<StdBeginIt*, StdEndIt*> {
+	return { b, e };
+}
+
 
 template<class StdContainer>
 auto iter(StdContainer&& c) -> InputIteratorAdaptor<decltype(std::begin(c)), decltype(std::end(c))> {
-	return{ std::begin(c), std::end(c) };
+	return { std::begin(c), std::end(c) };
 }

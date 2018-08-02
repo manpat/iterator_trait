@@ -6,6 +6,8 @@
 
 template<class It> struct StdFwdIteratorConsumer;
 template<class It, class F> struct IterMap;
+template<class It, class F> struct IterFilter;
+template<class It, class It2> struct IterZip;
 template<class It> struct IterEnumerate;
 
 // The powerhouse of the cell
@@ -15,12 +17,16 @@ struct Iterator {
 
 	Option<Item> next() { return static_cast<Derived*>(this)->Derived::next(); }
 
-	StdFwdIteratorConsumer<Derived> std_consumer()    { return StdFwdIteratorConsumer<Derived>{ static_cast<Derived&&>(*this) }; }
-	StdFwdIteratorConsumer<Derived> begin()           { return std_consumer(); }
-	StdFwdIteratorConsumer<Derived> end() const       { return StdFwdIteratorConsumer<Derived>{ None }; }
+	StdFwdIteratorConsumer<Derived> std_consumer()         { return StdFwdIteratorConsumer<Derived>{ static_cast<Derived&&>(*this) }; }
+	StdFwdIteratorConsumer<Derived> begin()                { return std_consumer(); }
+	StdFwdIteratorConsumer<Derived> end() const            { return StdFwdIteratorConsumer<Derived>{ None }; }
 
-	template<class F> IterMap<Derived, F> map(F&& f)  { return IterMap<Derived, F>(static_cast<Derived&&>(*this), std::forward<F>(f)); }
-	IterEnumerate<Derived> enumerate()                { return IterEnumerate<Derived>(static_cast<Derived&&>(*this)); }
+	template<class F> IterMap<Derived, F> map(F&& f)       { return IterMap<Derived, F>(static_cast<Derived&&>(*this), std::forward<F>(f)); }
+	template<class F> IterFilter<Derived, F> filter(F&& f) { return IterFilter<Derived, F>(static_cast<Derived&&>(*this), std::forward<F>(f)); }
+	IterEnumerate<Derived> enumerate()                     { return IterEnumerate<Derived>(static_cast<Derived&&>(*this)); }
+
+	template<class It, class ItNoRef = std::remove_reference_t<It>>
+	IterZip<Derived, ItNoRef> zip(It&& it)                 { return IterZip<Derived, ItNoRef>(static_cast<Derived&&>(*this), std::move(it)); }
 
 	template<class A, class F>
 	auto fold(A a, F&& f) -> A {
@@ -79,7 +85,7 @@ private:
 
 
 template<class It, class F>
-struct IterMap : Iterator<typename It::Item, IterMap<It, F>> {
+struct IterMap : Iterator<decltype(std::declval<F>()(std::declval<typename It::Item>())), IterMap<It, F>> {
 	using Item = decltype(std::declval<F>()(std::declval<typename It::Item>()));
 
 	IterMap(It&& i, F&& f) : m_iter{std::move(i)}, m_func{std::forward<F>(f)} {}
@@ -95,6 +101,49 @@ struct IterMap : Iterator<typename It::Item, IterMap<It, F>> {
 private:
 	It m_iter;
 	F m_func;
+};
+
+
+template<class It, class F>
+struct IterFilter : Iterator<typename It::Item, IterFilter<It, F>> {
+	using Item = typename It::Item;
+
+	IterFilter(It&& i, F&& f) : m_iter{std::move(i)}, m_func{std::forward<F>(f)} {}
+
+	Option<Item> next() {
+		while (auto o = m_iter.next()) {
+			if(m_func(o.unwrap_ref()))
+				return Some(o.unwrap());
+		}
+
+		return None;
+	}
+
+private:
+	It m_iter;
+	F m_func;
+};
+
+
+template<class It, class It2>
+struct IterZip : Iterator<std::pair<typename It::Item, typename It2::Item>, IterZip<It, It2>> {
+	using Item = std::pair<typename It::Item, typename It2::Item>;
+
+	IterZip(It&& i, It2&& i2) : m_iter{std::move(i)}, m_iter2{std::move(i2)} {}
+
+	Option<Item> next() {
+		auto a = m_iter.next();
+		auto b = m_iter2.next();
+		if (a && b) {
+			return Some(Item(a.unwrap(), b.unwrap()));
+		}
+
+		return None;
+	}
+
+private:
+	It m_iter;
+	It2 m_iter2;
 };
 
 
