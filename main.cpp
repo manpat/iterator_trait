@@ -74,6 +74,13 @@ int main() {
 		});
 
 	std::printf("%s\n", zip_string.data());
+
+	// Chain two strings together
+	auto chain_string = iter("Hello").chain(iter(" world"))
+		.filter([](char c) { return c != 0; }) // Skip the null terminator
+		.fold(std::string{}, [](auto& s, auto c) { return s += c; });
+
+	std::printf("%s\n", chain_string.data());
 }
 
 

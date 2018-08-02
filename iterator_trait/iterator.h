@@ -8,31 +8,47 @@ template<class It> struct StdFwdIteratorConsumer;
 template<class It, class F> struct IterMap;
 template<class It, class F> struct IterFilter;
 template<class It, class It2> struct IterZip;
+template<class It, class It2> struct IterChain;
 template<class It> struct IterEnumerate;
 
 // The powerhouse of the cell
 template<class I, class Derived>
 struct Iterator {
-	using Item = I;
+	// TODO: Do we actually need to pass item type as a type parameter?
 
-	Option<Item> next() { return static_cast<Derived*>(this)->Derived::next(); }
+	// You MUST define an Item type
+	// using Item = I;
 
-	StdFwdIteratorConsumer<Derived> std_consumer()         { return StdFwdIteratorConsumer<Derived>{ static_cast<Derived&&>(*this) }; }
+	// You MUST implement this
+	Option<void> next() = delete;
+
+	// TODO: Optionally implement this?
+	std::pair<size_t, Option<size_t>> size_hint() = delete;
+
+	Derived&& move_this() { return static_cast<Derived&&>(*this); }
+	Derived* super_this() { return static_cast<Derived*>(this); }
+
+	// NOTE: All methods from here on take ownership of this (excluding end())
+	// this Iterator should not be used afterwards, it is potentially UB to do so
+	StdFwdIteratorConsumer<Derived> std_consumer()         { return StdFwdIteratorConsumer<Derived>{ move_this() }; }
 	StdFwdIteratorConsumer<Derived> begin()                { return std_consumer(); }
 	StdFwdIteratorConsumer<Derived> end() const            { return StdFwdIteratorConsumer<Derived>{ None }; }
 
-	template<class F> IterMap<Derived, F> map(F&& f)       { return IterMap<Derived, F>(static_cast<Derived&&>(*this), std::forward<F>(f)); }
-	template<class F> IterFilter<Derived, F> filter(F&& f) { return IterFilter<Derived, F>(static_cast<Derived&&>(*this), std::forward<F>(f)); }
-	IterEnumerate<Derived> enumerate()                     { return IterEnumerate<Derived>(static_cast<Derived&&>(*this)); }
+	template<class F> IterMap<Derived, F> map(F&& f)       { return IterMap<Derived, F>{ move_this(), std::forward<F>(f) }; }
+	template<class F> IterFilter<Derived, F> filter(F&& f) { return IterFilter<Derived, F>{ move_this(), std::forward<F>(f) }; }
+	IterEnumerate<Derived> enumerate()                     { return IterEnumerate<Derived>{ move_this() }; }
 
+	// 'It' is always moved
 	template<class It, class ItNoRef = std::remove_reference_t<It>>
-	IterZip<Derived, ItNoRef> zip(It&& it)                 { return IterZip<Derived, ItNoRef>(static_cast<Derived&&>(*this), std::move(it)); }
+	IterZip<Derived, ItNoRef> zip(It&& it)                 { return IterZip<Derived, ItNoRef>{ move_this(), std::move(it) }; }
+	template<class It, class ItNoRef = std::remove_reference_t<It>>
+	IterChain<Derived, ItNoRef> chain(It&& it)             { return IterChain<Derived, ItNoRef>{ move_this(), std::move(it) }; }
 
 	template<class A, class F>
 	auto fold(A a, F&& f) -> A {
 		// TODO: should A be && or is pass-by-value fine?
 		// Also assumes `a` is assignable
-		while(auto o = next()) {
+		while(auto o = super_this()->next()) {
 			a = f(a, o.unwrap());
 			// TODO: move?
 		}
@@ -136,6 +152,30 @@ struct IterZip : Iterator<std::pair<typename It::Item, typename It2::Item>, Iter
 		auto b = m_iter2.next();
 		if (a && b) {
 			return Some(Item(a.unwrap(), b.unwrap()));
+		}
+
+		return None;
+	}
+
+private:
+	It m_iter;
+	It2 m_iter2;
+};
+
+
+template<class It, class It2>
+struct IterChain : Iterator<std::common_type_t<typename It::Item, typename It2::Item>, IterChain<It, It2>> {
+	using Item = std::common_type_t<typename It::Item, typename It2::Item>;
+
+	IterChain(It&& i, It2&& i2) : m_iter{std::move(i)}, m_iter2{std::move(i2)} {}
+
+	Option<Item> next() {
+		if(auto a = m_iter.next()) {
+			return Some(Item(a.unwrap()));
+		}
+
+		if(auto b = m_iter2.next()) {
+			return Some(Item(b.unwrap()));
 		}
 
 		return None;
