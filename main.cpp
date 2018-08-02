@@ -24,13 +24,13 @@ int main() {
 		.fold(0, [](int a, int) { return a + 1; });
 
 	auto str = iter(std::array<char, 3>{'a', 'b', 'c'})
-		.map([](char v) -> char { return std::toupper(v); })
+		.map([](char v) { return std::toupper(v); })
 		.fold(std::string{}, [](std::string& a, char c) { a += c; return a += c; });
 
-	std::printf("%d\n", sum);
-	std::printf("%d\n", sum2);
-	std::printf("%d\n", sum3);
-	std::printf("%s\n", str.c_str());
+	std::printf("sum:  %d\n", sum);
+	std::printf("sum2: %d\n", sum2);
+	std::printf("sum3: %d\n", sum3);
+	std::printf("str:  %s\n", str.c_str());
 
 	for (const auto kv : iter("ABCD").enumerate()) {
 		if (kv.second)
@@ -38,7 +38,6 @@ int main() {
 	}
 
 	std::printf("\n");
-	std::getchar();
 }
 
 

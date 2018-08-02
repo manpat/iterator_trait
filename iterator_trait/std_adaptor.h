@@ -45,6 +45,7 @@ struct InputIteratorAdaptor : Iterator<
 		return None;
 	}
 
+	// TODO: maybe Option should be used here instead
 	union { StdBeginIt m_begin; };
 	union { StdEndIt m_end; };
 	bool m_valid;

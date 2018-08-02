@@ -22,6 +22,9 @@ template<class T, bool Copyable>
 struct Option {
 	using Item = std::remove_const_t<T>;
 
+	template<class TT, bool C>
+	friend struct Option;
+
 	constexpr explicit Option(T&& v) 	: m_value{ std::move(v) }, m_valid{true} {}
 	constexpr          Option(NoneType) : m_null_value{}, m_valid{false} {}
 
@@ -31,8 +34,8 @@ struct Option {
 			new (&m_value) T ( o.m_value );
 	}
 
-	template<class TT>
-	Option(Option<TT>&& o) : m_valid{o.m_valid} {
+	template<class TT, bool C>
+	Option(Option<TT, C>&& o) : m_valid{o.m_valid} {
 		if (m_valid)
 			new (&m_value) T ( std::move(o.m_value) );
 
@@ -81,7 +84,7 @@ struct Option {
 	T&        unwrap_ref() { if (!is_some()) std::abort(); return m_value; }
 	T         unwrap_or(T&& t) const { if (!is_some()) return t; return m_value; }
 
-protected:
+private:
 	Option(bool v, PartialConstruct) : m_valid{v} {}
 
 	union {
