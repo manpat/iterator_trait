@@ -1,0 +1,9 @@
+#pragma once
+#ifndef ITERATOR_TRAIT_H
+#define ITERATOR_TRAIT_H
+
+#include "option.h"
+#include "iterator.h"
+#include "std_adaptor.h"
+
+#endif
